@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Hyundai rent</title>
+
+        <!-- Vue.js -->
+        <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+        <!-- Axios -->
+        <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+        <!-- link to Bootstrap -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+        <!-- Element-UI datepicker -->
+        <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+        <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+        <script src="https://unpkg.com/vue"></script>
+        <script src="https://unpkg.com/element-ui"></script>
+        <script src="https://unpkg.com/element-ui/lib/umd/locale/en.js"></script>
+        <script src="https://unpkg.com/element-ui/lib/umd/locale/ru-RU.js"></script>
+
+        <script>
+            // Set Datepiker language to russian
+            //ELEMENT.locale(ELEMENT.lang.en)
+            ELEMENT.locale(ELEMENT.lang.ruRU)
+        </script>
+
+        <style>
+            .el-date-editor {
+                word-wrap: normal;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container text-center mt-4">
+            <h4>Выбор автомобиля</h4>
+        </div>
+        <div id="app">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-6" style="height: 300px;">
+                        <label>Выберите модель:</label>
+                        <select v-model="car" @change="getDates" class="form-control" label="asd">
+                            <option :value="null">пусто</option>
+                            <option v-for="(item, index) in cars" :key="index" :value="item">{{ item.model }}</option>
+                        </select>
+                        <div class="card p-2 mt-2">
+                            <h5 class="mt-2">Информация</h5>
+                            <dl>
+                                <dt>id:</dt><dd>{{ car? car.id : '' }}</dd>
+                                <dt>Гос. номер:</dt><dd>{{ car? car.license : '' }}</dd>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6" style="height: 300px;">
+                        <img :src="car? car.src : ''" alt="photo" class="mt-2">
+                    </div>
+                </div>
+
+                <div class="container text-center mt-2">
+                    <h4>График бронирования</h4>
+                    <a @click="clearReserves">x</a>
+                </div>
+                <div class="row">
+                    <div class="col-md-6" style="height: 300px;">
+                        <div class="card p-2 mt-2">
+                            <h5 class="text-center">Новое бронирование</h5>
+                            <label class="mt-2">Введите Ваше имя:</label>
+                            <input type="text" v-model="username" class="form-control" :class="isUsernameInvalid"></input>
+                            <label class="mt-2">Выберите интервал бронирования:</label>
+                            <el-date-picker
+                                v-model="dateRange"
+                                type="daterange"
+                                format="dd.MM.yyyy"
+                                range-separator="по"
+                                start-placeholder="Начало"
+                                end-placeholder="Окончание"
+                                :disabled="!car"
+                                :picker-options="pickerOptions"
+                                class="col-md-12 form-control"
+                                :class="isRangeInvalid">
+                            </el-date-picker>
+                            <button type="button" @click="reserveDates" :disabled="!car" class="btn btn-primary mt-2">Забронировать</button>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6" style="height: 300px;">
+                        <div class="card p-2 mt-2">
+                            <h5 class="text-center">Бронирования</h5>
+                            <ul class="list-group mt-2 ml-4">
+                                <li v-for="(item, index) in intervals" :key="index" :value="item">
+                                    {{ item.username }} <small>{{ formatDate(item.beginDate) }} - {{ formatDate(item.endDate) }}</small>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script type="text/javascript">
+
+            var app = new Vue({
+                el: '#app',
+                data: {
+                    cars: null,
+                    car: null,
+
+                    intervals: [],
+                    pickerOptions: {
+                        disabledDate: null
+                    },
+
+                    username: '',
+                    dateRange: '',
+
+                    validation: false
+                },
+                methods: {
+                    getModels: function() {
+                        console.log('getModels()')
+                        axios.get(`${document.location.origin}/api/car`, {})
+                            .then(({ data }) => {
+                                this.cars = data
+                            })
+                    },
+                    getDates: function() {
+                        console.log('getDates()')
+                        this.validation = false
+                        if (!this.car) {
+                            this.intervals = []
+                            return
+                        }
+                        axios.get(`${document.location.origin}/api/reserve`, { params: { car: this.car.id } })
+                            .then(({ data }) => {
+                                this.intervals = data.map((item) => {
+                                    let res = item
+                                    res.beginDate = new Date(item.beginDate)
+                                    res.endDate = new Date(item.endDate)
+                                    return res
+                                })
+
+                                // Need to set disabledDate-function each time disabled intervals changed
+                                let context = this
+                                this.pickerOptions.disabledDate = function(time) {
+                                    return time.getTime() < Date.now() || context.intervals.some(el => time.getTime() >= el.beginDate.getTime() && time.getTime() <= el.endDate.getTime())
+                                }
+                            })
+                    },
+                    reserveDates: function() {
+                        console.log('reserveDates()')
+                        this.validation = true
+                        if (this.isUsernameInvalid['is-invalid'] || this.isRangeInvalid['is-invalid']) {
+                            console.log('not valid!')
+                            return
+                        }
+                        axios.post(`${document.location.origin}/api/reserve`, {
+                                car: this.car.id,
+                                username: this.username,
+                                beginDate: this.dateRange[0],
+                                endDate: this.dateRange[1]
+                            })
+                            .then(({ data }) => {
+                                this.username = ''
+                                this.dateRange = ''
+                                this.validation = false
+                                this.getDates()
+                            })
+                    },
+                    clearReserves: function() {
+                        console.log('clearReserves()')
+                        axios.delete(`${document.location.origin}/api/reserve`, {})
+                            .then(({ data }) => {
+                                console.log('cleaned')
+                                this.getDates()
+                            })
+                    },
+
+                    formatDate(date) {
+                        return date.getDate().toString() + '.'
+                        + (1 + date.getMonth()).toString().padStart(2, '0') + '.'
+                        + date.getFullYear();
+                    }
+                },
+                computed: {
+                    isUsernameInvalid: function () {
+                        return {
+                            'is-invalid': this.validation && !this.username
+                        }
+                    },
+                    isRangeInvalid: function () {
+                        return {
+                            'is-invalid': this.validation && !(this.dateRange && this.dateRange.length > 1)
+                        }
+                    }
+                },
+                created: function() {
+                    this.getModels()
+                }
+            })
+        </script>
+    </body>
+</html>
