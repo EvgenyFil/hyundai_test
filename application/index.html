@@ -81,6 +81,9 @@
                                 class="col-md-12 form-control"
                                 :class="isRangeInvalid">
                             </el-date-picker>
+                            <div class="invalid-feedback" v-show="isRangeInvalid && isRangesIntersect">
+                                {{ isRangesIntersect? 'Интервалы не должны пересекаться с существующимися' : 'Интервал некорректен'}}
+                            </div>
                             <button type="button" @click="reserveDates" :disabled="!car" class="btn btn-primary mt-2">Забронировать</button>
                         </div>
                     </div>
@@ -183,15 +186,23 @@
                     }
                 },
                 computed: {
-                    isUsernameInvalid: function () {
+                    isUsernameInvalid: function() {
                         return {
                             'is-invalid': this.validation && !this.username
                         }
                     },
-                    isRangeInvalid: function () {
+                    isRangeInvalid: function() {
                         return {
-                            'is-invalid': this.validation && !(this.dateRange && this.dateRange.length > 1)
+                            'is-invalid': this.validation && !(this.dateRange && this.dateRange.length > 1 && !this.isRangesIntersect)
                         }
+                    },
+                    isRangesIntersect: function() {
+                        if (!this.intervals)
+                            return false
+                        if (!this.dateRange)
+                            return false
+                        return this.intervals.some(el => (el.beginDate.getTime() <= this.dateRange[1].getTime()
+                                                       && el.endDate.getTime() >= this.dateRange[0].getTime()))
                     }
                 },
                 created: function() {
